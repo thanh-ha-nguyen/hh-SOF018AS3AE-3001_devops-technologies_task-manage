@@ -1,12 +1,13 @@
 import express, { Application } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import morgan from 'morgan';
 import dotenv from 'dotenv';
 import { connectDB } from './config/database.js';
 import { config } from './config/config.js';
 import routes from './routes/index.js';
 import { errorHandler, notFound } from './middleware/errorHandler.js';
+import { log } from './observability/logger.js';
+import { observeHttpMetrics } from './observability/metrics.js';
 
 dotenv.config();
 
@@ -21,7 +22,22 @@ app.use(cors({
   origin: config.frontendUrl,
   credentials: true
 }));
-app.use(morgan('dev')); 
+app.use(observeHttpMetrics);
+app.use((req, res, next) => {
+  const startedAt = process.hrtime.bigint();
+
+  res.on('finish', () => {
+    const route = req.route?.path;
+    log('info', 'http_request', {
+      method: req.method,
+      path: route ? `${req.baseUrl}${String(route)}` : req.path,
+      status_code: res.statusCode,
+      duration_ms: Number(process.hrtime.bigint() - startedAt) / 1e6
+    });
+  });
+
+  next();
+});
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -47,7 +63,7 @@ const PORT = config.port;
 
 if (process.env.NODE_ENV !== 'test') {
   app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT} in ${config.nodeEnv} mode`);
+    log('info', 'server_started', { port: PORT, environment: config.nodeEnv });
   });
 }
 

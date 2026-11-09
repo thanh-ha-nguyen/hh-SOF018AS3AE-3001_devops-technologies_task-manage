@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import { log } from '../observability/logger.js';
 
 export const errorHandler = (
   err: Error,
@@ -9,7 +10,10 @@ export const errorHandler = (
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   next: NextFunction
 ): void => {
-  console.error(err.stack);
+  log('error', 'request_failed', {
+    error: err.message,
+    ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
+  });
 
   res.status(500).json({
     success: false,

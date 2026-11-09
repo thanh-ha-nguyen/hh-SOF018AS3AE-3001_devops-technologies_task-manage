@@ -1,6 +1,7 @@
 import { Pool } from 'pg';
 import dotenv from 'dotenv';
 import { applySchema } from '../db/runSchema.js';
+import { log } from '../observability/logger.js';
 
 dotenv.config();
 
@@ -16,16 +17,18 @@ export const pool = new Pool({
 export const connectDB = async (): Promise<void> => {
   try {
     await pool.query('SELECT 1');
-    console.log('Database connection established successfully.');
+    log('info', 'database_connection_established');
 
     // Apply schema.sql (CREATE TABLE IF NOT EXISTS) in development, mirroring
     // the old Sequelize sync-on-boot behavior.
     if (process.env.NODE_ENV === 'development' || process.env.DB_SYNC === 'true') {
       await applySchema(pool);
-      console.log('Database schema applied.');
+      log('info', 'database_schema_applied');
     }
   } catch (error) {
-    console.error('Unable to connect to the database:', error);
+    log('error', 'database_connection_failed', {
+      error: error instanceof Error ? error.message : String(error)
+    });
     // Don't exit in test environment
     if (process.env.NODE_ENV !== 'test') {
       process.exit(1);

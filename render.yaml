@@ -1,0 +1,59 @@
+databases:
+  - name: task-management-db
+    databaseName: taskmanagement
+    user: taskmanagement
+    plan: free
+    region: frankfurt
+    postgresMajorVersion: "17"
+
+services:
+  - type: web
+    name: task-management-backend
+    runtime: image
+    plan: free
+    region: frankfurt
+    image:
+      url: ghcr.io/thanh-ha-nguyen/hh-sof018as3ae-3001_devops-technologies_task-manage-backend:latest
+      creds:
+        fromRegistryCreds:
+          name: github-container-registry
+    healthCheckPath: /api/health
+    autoDeploy: false
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: task-management-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      - key: FRONTEND_URL
+        value: https://task-management-frontend.onrender.com
+      - key: DB_SYNC
+        sync: false
+      - key: METRICS_ENABLED
+        value: "false"
+
+  - type: web
+    name: task-management-frontend
+    runtime: image
+    plan: free
+    region: frankfurt
+    image:
+      url: ghcr.io/thanh-ha-nguyen/hh-sof018as3ae-3001_devops-technologies_task-manage-frontend:latest
+      creds:
+        fromRegistryCreds:
+          name: github-container-registry
+    healthCheckPath: /
+    autoDeploy: false
+    envVars:
+      - key: BACKEND_SCHEME
+        value: https
+      - key: BACKEND_HOST
+        fromService:
+          type: web
+          name: task-management-backend
+          property: host

@@ -1,5 +1,7 @@
 # Task Management System - DevOps Project
 
+[![CI](https://github.com/thanh-ha-nguyen/hh-SOF018AS3AE-3001_devops-technologies_task-manage/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/thanh-ha-nguyen/hh-SOF018AS3AE-3001_devops-technologies_task-manage/actions/workflows/ci.yml)
+
 A full-stack task management application built for learning DevOps practices including CI/CD pipelines, containerization, and cloud deployment.
 
 ## Features
@@ -64,7 +66,7 @@ flowchart LR
 
 ### Prerequisites
 
-- Node.js 22+ and npm (or Node.js Docker image)
+- Node.js 22.12+ and npm (or Node.js Docker image)
 - Docker and Docker Compose
 - Git
 
@@ -434,3 +436,88 @@ Implement monitoring and health checks for your deployed application:
 Teachers will provide a link to the course self‑assessment form. All students must complete that form and submit it by the course deadline.
 
 In the self‑assessment there are own assessment for each project task. Ensure access permissions are correct. If any link points to a private resource, grant the teachers access or provide a downloadable alternative link.
+
+## Course implementation and runbook
+
+The repository includes hands-on examples for the wider course topics: GitHub collaboration, CI/CD, containerization, release versioning, security, Kubernetes, and monitoring. Start with [CONTRIBUTING.md](./CONTRIBUTING.md) for the branch and pull-request workflow.
+
+### CI, security, and releases
+
+- The `CI and release deployment` workflow runs on pushes and pull requests to `main`, and on `v*` tags. It tests and builds on Ubuntu and Windows with Node.js 22 and 24, builds and scans both production images, then publishes them to GHCR on pushes to `main` and valid release tags. Images receive `latest`, branch/release, and commit-SHA tags.
+- CodeQL scans JavaScript/TypeScript and GitHub Actions weekly and on changes. Gitleaks scans repository history for secrets. Trivy checks both built images and deployment configuration for high/critical findings. Dependabot proposes npm and GitHub Actions updates. The CI dependency audit fails on high or critical npm advisories; moderate findings are reported in the Actions log.
+- A small JavaScript action validates release tags as `vMAJOR.MINOR.PATCH`. Its tests can be run with `node --test .github/actions/validate-release-tag/test.mjs`.
+- For a release, merge and verify the change on `main`, create and push an annotated semantic-version tag, then publish the GitHub release if desired:
+
+  ```bash
+  git tag -a v1.0.0 -m "First release"
+  git push origin v1.0.0
+  ```
+
+- Before tagging, add `RENDER_BACKEND_DEPLOY_HOOK_URL` and `RENDER_FRONTEND_DEPLOY_HOOK_URL` as secrets in the GitHub `production` environment. In Render, create a workspace container registry credential named `github-container-registry` for GHCR, using a GitHub personal access token with `read:packages` access, then create a deploy hook for each image-backed service. Keep the hook URLs and registry token private. The workflow publishes images with `GITHUB_TOKEN` and `packages: write`; no separate push credential is needed in GitHub.
+
+### Local containers
+
+Copy `.env.compose.example` to `.env`, replace every placeholder with local-only random values (use an alphanumeric database password so it is safe in the connection URL), then build and start the app:
+
+```bash
+cp .env.compose.example .env
+docker compose up --build
+```
+
+The frontend is at `http://localhost:5173`; its `/api` requests are proxied to the backend, and PostgreSQL data is kept in a named volume. The frontend image builds static Vite files and serves them with Nginx. Compose waits for PostgreSQL and the backend health checks before starting dependent services. The API container is private to the Compose network; the existing local Node development instructions still use port `5000`.
+
+Do not use the example credentials in a deployed environment. The root `.env` file is ignored by Git.
+
+### Render container deployment
+
+The root `render.yaml` defines a Render Blueprint with a PostgreSQL database and backend and frontend services that pull prebuilt images from GHCR. First merge to `main` so CI publishes the initial `latest` images. Then add the workspace registry credential named `github-container-registry` and connect the repository to Render to create the Blueprint (the packages can remain private). The pipeline publishes `latest`, branch/release, and commit-SHA tags; on a tagged release it triggers Render deploy hooks with that exact release tag after both images have been pushed. The free PostgreSQL plan expires after 30 days and free web services may spin down; check Render's current plan limits before using this for anything beyond a course demonstration.
+
+For the first backend deployment, set `DB_SYNC=true` in the Render dashboard to apply the schema. Confirm the deployment logs show a successful database connection and schema application, then set `DB_SYNC=false`. The `FRONTEND_URL` in the Blueprint assumes Render assigns `https://task-management-frontend.onrender.com`; update it if the service receives a different hostname or you use a custom domain. Configure Render's backend health check at `/api/health` and enable deployment and service-health notifications.
+
+The release workflow calls each service's Render deploy hook only after tests, audit, image scans, and GHCR publishing succeed. Render pulls the tagged release image from GHCR; it does not build the Dockerfiles during deployment.
+
+After the workflows have run at least once, protect `main` in GitHub repository settings: require pull requests, require the relevant CI/security checks to pass, and choose an approval requirement appropriate for your course team. Review collaborator access and use the `production` environment for deployment secrets. GitHub's Actions Insights and workflow run views provide pipeline usage and performance monitoring; configure Render notifications separately for deployed-service alerts.
+
+### Kubernetes exercise
+
+The `k8s/` manifests demonstrate a namespace, configuration, secret references, persistent PostgreSQL storage, Deployments, Services, readiness/liveness probes, resource limits, non-root security contexts, read-only root filesystems, and writable temporary volumes. They are intended for a local Kubernetes cluster, not applied automatically by CI.
+
+1. Build the images locally from the repository root and make them available to your local cluster:
+
+   ```bash
+   docker build -f backend/Dockerfile -t task-management-backend:local .
+   docker build -f frontend/Dockerfile --build-arg VITE_API_URL=/api -t task-management-frontend:local .
+   ```
+
+2. Create the namespace and a Kubernetes Secret using locally generated values. Do not commit the values or paste them into a pull request:
+
+   ```bash
+   kubectl apply -f k8s/namespace.yaml
+   kubectl -n task-management create secret generic task-management-secrets \
+     --from-literal=postgres-password='<local-password>' \
+     --from-literal=database-url='postgresql://postgres:<local-password>@postgres:5432/taskmanagement' \
+     --from-literal=jwt-secret='<at-least-32-random-characters>'
+   kubectl apply -f k8s/
+   ```
+
+3. Wait for the pods with `kubectl -n task-management get pods`, then access the app with `kubectl -n task-management port-forward service/frontend 30080:80`. Open `http://localhost:30080`.
+
+These manifests use a local image pull policy and a development PostgreSQL volume. For a real cluster, publish images to a registry, use a managed database and secret manager, and review storage, access control, and availability requirements.
+
+### Metrics and logs
+
+The backend writes structured JSON logs to stdout and exposes Prometheus metrics at `/api/metrics` only when `METRICS_ENABLED=true`. Compose enables metrics for local monitoring. Start the optional dashboards with:
+
+```bash
+docker compose --profile metrics up --build
+```
+
+Prometheus is at `http://localhost:9090`; Grafana is at `http://localhost:3001` (use the password in `.env`). To try log aggregation with Elasticsearch, Logstash, and Kibana:
+
+```bash
+docker compose --profile logs up --build
+```
+
+Kibana is at `http://localhost:5601`; the Logstash pipeline reads structured application logs from a shared local volume. These monitoring services bind to loopback and disable Elasticsearch security for local learning only. Do not expose them to the public internet.
+
+The course topics that require GitHub or cloud account actions still need to be completed in those dashboards: create and review pull requests, configure repository permissions and branch protection, add the Render deploy-hook secrets, enable service notifications, and complete the course self-assessment.
