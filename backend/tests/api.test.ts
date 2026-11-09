@@ -18,4 +18,13 @@ describe('API Health Check', () => {
     expect(response.status).toBe(404);
     expect(response.body).toHaveProperty('success', false);
   });
+
+  it('should expose Prometheus metrics when enabled', async () => {
+    const response = await request(app).get('/api/metrics');
+
+    expect(response.status).toBe(200);
+    expect(response.headers['content-type']).toContain('text/plain');
+    expect(response.text).toContain('# HELP http_requests_total');
+    expect(response.text).toContain('# HELP http_request_duration_seconds');
+  });
 });

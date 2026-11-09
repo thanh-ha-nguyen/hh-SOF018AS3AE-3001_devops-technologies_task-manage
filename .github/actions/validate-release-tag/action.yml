@@ -1,0 +1,12 @@
+name: Validate release tag
+description: Validate a v-prefixed semantic version tag and expose its version.
+inputs:
+  tag:
+    description: Git tag to validate, for example v1.2.3.
+    required: true
+outputs:
+  version:
+    description: Validated semantic version without the leading v.
+runs:
+  using: node20
+  main: index.js

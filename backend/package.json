@@ -9,7 +9,7 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "watch": "tsc -w",
-    "test": "cross-env NODE_ENV=test vitest run --coverage",
+    "test": "cross-env NODE_ENV=test METRICS_ENABLED=true vitest run --coverage",
     "test:watch": "cross-env NODE_ENV=test vitest watch",
     "lint": "eslint src --ext .ts",
     "lint:fix": "eslint src --ext .ts --fix",
@@ -17,6 +17,7 @@
     "seed": "node dist/scripts/seed.js"
   },
   "dependencies": {
+    "@prometheus-io/client": "^0.16.1",
     "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
@@ -24,7 +25,6 @@
     "express-validator": "^7.3.2",
     "helmet": "^8.3.0",
     "jsonwebtoken": "^9.0.2",
-    "morgan": "^1.12.1",
     "pg": "^8.22.0",
     "vitest": "^5.0.0"
   },
@@ -34,7 +34,6 @@
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.3",
     "@types/jsonwebtoken": "^9.0.5",
-    "@types/morgan": "^1.9.9",
     "@types/node": "^26.5.0",
     "@types/pg": "^8.15.5",
     "@types/supertest": "^6.0.2",
