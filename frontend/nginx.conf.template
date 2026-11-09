@@ -5,7 +5,9 @@ server {
     index index.html;
 
     location /api/ {
-        proxy_pass ${BACKEND_SCHEME}://${BACKEND_HOST};
+        resolver ${DNS_RESOLVER} valid=10s ipv6=off;
+        set $backend_origin ${BACKEND_SCHEME}://${BACKEND_HOST};
+        proxy_pass $backend_origin;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;

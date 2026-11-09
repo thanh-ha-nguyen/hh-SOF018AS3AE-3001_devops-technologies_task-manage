@@ -19,8 +19,9 @@ USER 101
 ENV PORT=8080
 ENV BACKEND_SCHEME=http
 ENV BACKEND_HOST=backend:5000
-ENV NGINX_ENVSUBST_FILTER=^(PORT|BACKEND_SCHEME|BACKEND_HOST)$
+ENV NGINX_ENVSUBST_FILTER=^(PORT|BACKEND_SCHEME|BACKEND_HOST|DNS_RESOLVER)$
 
+COPY --chmod=755 frontend/docker-entrypoint.d/05-set-dns-resolver.envsh /docker-entrypoint.d/05-set-dns-resolver.envsh
 COPY frontend/nginx.conf.template /etc/nginx/templates/default.conf.template
 COPY --from=build /workspace/frontend/dist /usr/share/nginx/html
 
